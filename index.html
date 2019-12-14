@@ -1,0 +1,168 @@
+<html>
+<head>
+	<style>
+		body{
+			display:flex;
+			justify-content:center;
+			align-items:center;
+			margin:0;
+			flex-direction:column;
+		}
+		
+		*{touch-action: none;
+			-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			-khtml-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			user-select: none;
+		}
+	</style>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+	<div id="result">Loading Model ...</div>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.0.0/dist/tf.min.js"></script>
+<script>
+try{
+	window.log = (...q) => console.log(...q);
+	function createCanvas(width = 320, height = 160){
+		const canvas = document.createElement('canvas');
+		canvas.width = width;
+		canvas.height = height;
+		
+		return { canvas, context : canvas.getContext('2d') };
+	}
+	function loadImage(url){
+		return new Promise(resolve => {
+			const img = new Image;
+			img.onload = () => resolve(img);
+			img.src = url;
+		});
+	}
+	function getImageData(image, sx, sy, ex, ey){
+		const { canvas, context } = createCanvas(image.width, image.height);
+		context.drawImage(image, 0, 0, canvas.width, canvas.height);
+		return context.getImageData(sx, sy, ex, ey);
+	}
+	function sleep(time){
+		return new Promise(resolve => {
+			setTimeout(resolve, time);
+		});
+	}
+	function getXandY(e){
+		let x, y;
+	    if(e.type == 'touchstart' || e.type == 'touchmove' || e.type == 'touchend' || e.type == 'touchcancel'){
+			let touch = e.touches[0] || e.changedTouches[0];
+			x = touch.pageX;
+			y = touch.pageY;
+		} else if (e.type == 'mousedown' || e.type == 'mouseup' || e.type == 'mousemove' || e.type == 'mouseover'|| e.type=='mouseout' || e.type=='mouseenter' || e.type=='mouseleave') {
+			x = e.clientX;
+			y = e.clientY;
+		}
+		return [x,y];
+	}
+	function mouseDown(e){
+		drawing = true;
+		
+		const [x, y] = getXandY(e);
+		
+		const dx = x - canvasRect.x;
+		const dy = y - canvasRect.y;
+
+		context.beginPath();
+		context.moveTo(dx, dy);
+	}
+	function mouseMove(e){
+		if(!drawing) return;
+	
+		const [x, y] = getXandY(e);
+	
+		const dx = x - canvasRect.x;
+		const dy = y - canvasRect.y;
+
+		context.lineTo(dx, dy);
+		context.stroke();
+	}
+	function mouseUp(){
+		if(!drawing) return;
+		
+		drawing = false;
+		predict();
+	}
+	async function predict(){
+		const digitDataURL = canvas.toDataURL();
+		const digitImage = await loadImage(digitDataURL);
+		const resizedBase64 = resizeImage(digitImage, 28, 28);
+		const resizedImage = await loadImage(resizedBase64);
+		
+		imageData = getImageData(resizedImage, 0, 0, resizedImage.width, resizedImage.height);
+		data = [];
+		
+		for(let i = 0; i < imageData.width * imageData.height; i ++){
+			const row = Math.floor(i / imageData.width);
+			const col = i % imageData.width;
+			
+			if(data[row] === undefined) data[row] = [];
+			
+			data[row][col] = [imageData.data[i * 4]];
+		}
+		
+		const tensor = tf.tensor4d([data]); //[1, 28 * 28]
+		res = await model.predict(tensor, true);
+		
+		const prediction = Array.from(res.dataSync());
+		const max = Math.max(...prediction);
+				
+		let result;
+		if(prediction[0] === max) result = 0;
+		else result = prediction.reduce((a, b, i) => b == max ? i : a);
+		
+		document.getElementById('result').innerHTML = `result : ${ result }  confidence : ${ max.toFixed(2) * 100 }%`;
+		
+		await sleep(100);
+		context.clearRect(0, 0, canvas.width, canvas.height);
+	}
+	function resizeImage(image, w, h){
+		const { canvas, context } = createCanvas(w, h);
+		context.drawImage(image, 0, 0, w, h);
+		return canvas.toDataURL();
+	}
+	
+	let drawing = false;
+	const size = innerWidth > innerHeight ? innerHeight : innerWidth ;
+	const { canvas, context } = createCanvas(size, size);
+
+	document.body.appendChild(canvas);
+	context.strokeStyle = 'red';
+	context.lineWidth = 20;
+	context.lineJoin = context.lineCap = 'round';
+	context.shadowBlur = 2;
+	context.shadowColor = 'red';
+
+	const canvasRect = canvas.getBoundingClientRect();
+	
+	canvas.onmousedown = mouseDown;
+	window.onmouseup = mouseUp;
+	canvas.onmousemove = mouseMove;
+	
+	canvas.addEventListener('touchstart', mouseDown);
+	canvas.addEventListener('touchend', mouseUp);
+	canvas.addEventListener('touchmove', mouseMove);
+
+	(async function(){
+		model = await tf.loadLayersModel('model.json');
+		log(model)
+		
+		canvas.style.background = '#ddd';
+		
+		document.getElementById('result').innerHTML = 'model loaded';
+	})();
+	
+}catch(e){
+	document.write(e);
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,98 @@
+<style>
+	body{
+		display:flex;
+		justify-content:center;
+		align-items:center;
+	}
+	canvas{
+		background:#ddd;
+		width:28px;
+		height:28px;
+		transform:scale(10);
+	}
+</style>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.0.0/dist/tf.min.js"></script>
+<script>
+	window.log = (...q) => console.log(...q);
+	function createCanvas(width = 320, height = 160){
+		const canvas = document.createElement('canvas');
+		canvas.width = width;
+		canvas.height = height;
+		
+		return { canvas, context : canvas.getContext('2d') };
+	}
+	function sleep(time){
+		return new Promise(resolve => {
+			setTimeout(resolve, time);
+		});
+	}
+	async function predict(){
+		const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+		data = [];
+		
+		for(let i = 0; i < imageData.width * imageData.height; i ++){
+			const row = Math.floor(i / imageData.width);
+			const col = i % imageData.width;
+			
+			if(data[row] === undefined) data[row] = [];
+			
+			data[row][col] = [imageData.data[i * 4]];
+		}
+		
+		res = await model.predict(tf.tensor4d([data])); // , [1, 28 * 28]
+		const prediction = Array.from(res.dataSync());
+		const max = Math.max(...prediction);
+		
+		let result;
+		if(prediction[0] === max) result = 0;
+		else result = prediction.reduce((a, b, i) => b == max ? i : a);
+		
+		log(JSON.stringify({
+			result,
+			confidence : max
+		}));
+	}
+	function loadFile(file){
+		return new Promise(resolve => {
+			const reader = new FileReader;
+			reader.onload = () => resolve(reader.result);
+			reader.readAsDataURL(file);
+		});
+	}
+	function loadImage(url){
+		return new Promise(resolve => {
+			const image = new Image;
+			image.onload = () => resolve(image);
+			image.src = url;
+		});
+	}
+	
+	const { canvas, context } = createCanvas(28, 28);
+	document.body.appendChild(canvas);
+
+	window.ondrop = async e => {
+		e.preventDefault();
+		if(e.dataTransfer.files.length === 0) return;
+		
+		for(let file of e.dataTransfer.files){
+			const base64 = await loadFile(file);
+			img = await loadImage(base64);
+			
+			context.drawImage(img, 0, 0, canvas.width, canvas.height);
+			
+			predict();			
+		}
+	};
+	window.ondragover = e => {
+		e.preventDefault();
+	};
+
+	(async function(){
+		model = await tf.loadLayersModel('model.json');
+		log(model)
+	})();
+</script>
+
+</body>
