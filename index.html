@@ -61,34 +61,29 @@
 			let x, y;
 			if (e.type == 'touchstart' || e.type == 'touchmove' || e.type == 'touchend' || e.type == 'touchcancel') {
 				let touch = e.touches[0] || e.changedTouches[0];
-				x = touch.pageX;
-				y = touch.pageY;
+				x = touch.clientX;
+				y = touch.clientY;
 			} else if (e.type == 'mousedown' || e.type == 'mouseup' || e.type == 'mousemove' || e.type == 'mouseover' || e.type == 'mouseout' || e.type == 'mouseenter' || e.type == 'mouseleave') {
 				x = e.clientX;
 				y = e.clientY;
 			}
-			return [x, y];
+			const canvasRect = canvas.getBoundingClientRect();
+			return [x - canvasRect.x, y - canvasRect.y];
 		}
 		function mouseDown(e) {
 			drawing = true;
 
 			const [x, y] = getXandY(e);
 
-			const dx = x - canvasRect.x;
-			const dy = y - canvasRect.y;
-
 			context.beginPath();
-			context.moveTo(dx, dy);
+			context.moveTo(x, y);
 		}
 		function mouseMove(e) {
 			if (!drawing) return;
 
 			const [x, y] = getXandY(e);
 
-			const dx = x - canvasRect.x;
-			const dy = y - canvasRect.y;
-
-			context.lineTo(dx, dy);
+			context.lineTo(x, y);
 			context.stroke();
 		}
 		function mouseUp() {
@@ -147,7 +142,6 @@
 		size -= 50;
 		size = Math.min(Math.max(size, 100), 400)
 		const canvas = document.querySelector('#canvas');
-		console.log(canvas)
 		canvas.width = size;
 		canvas.height = size;
 		const context = canvas.getContext('2d');
@@ -157,7 +151,6 @@
 		context.shadowBlur = 2;
 		context.shadowColor = 'red';
 
-		const canvasRect = canvas.getBoundingClientRect();
 		canvas.onmousedown = mouseDown;
 		window.onmouseup = mouseUp;
 		canvas.onmousemove = mouseMove;
